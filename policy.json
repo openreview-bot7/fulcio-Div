@@ -1,0 +1,17 @@
+{
+    "identity": "https://github.com/sigstore-conformance/extremely-dangerous-public-oidc-beacon/.github/workflows/extremely-dangerous-oidc-beacon.yml@refs/heads/main",
+    "provider": "https://token.actions.githubusercontent.com",
+    
+    "device_fingerprint": "92eb8ea3e1dfb90f7b46db872ef076555147e4f3feb640fa9144a01eb2be9f75",
+    "device_fingerprint_": "9fc1b210b633b8f246e18c958c5fcc6990672f33b85fcf2499026231eaacdf8c",
+    
+    "security_key": "0x12a4df...",
+
+    
+    "signer_measurement": "xxx",
+    
+    "ra_required": false,
+  
+    "rule": "(identity AND provider) AND ((device_fingerprint OR security_key) OR (ra_required AND signer_measurement))"
+  
+  }

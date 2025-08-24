@@ -1,0 +1,123 @@
+#
+# Copyright 2021 The Sigstore Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fulcio-system
+  labels:
+    name: fulcio-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: fulcio-system
+  name: fulcio-server
+  labels:
+    app: fulcio-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fulcio-server
+  template:
+    metadata:
+      labels:
+        app: fulcio-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "2112"
+    spec:
+      containers:
+      - name: fulcio-server
+        image: ko://github.com/sigstore/fulcio
+        ports:
+        - containerPort: 5555
+        - containerPort: 5554
+        - containerPort: 2112 # metrics
+        args: [
+          "serve", "-c", "/etc/fulcio-config/server.yaml",
+        ]
+        env:
+        - name: FULCIO_SERVE_GCP_PRIVATE_CA_PARENT
+          valueFrom:
+            configMapKeyRef:
+              name: private-ca
+              key: connection_v1
+        volumeMounts:
+        - name: fulcio-config
+          mountPath: /etc/fulcio-config
+        - name: fulcio-secret
+          mountPath: /etc/fulcio-secret
+          readOnly: true
+        - name: oidc-info
+          mountPath: /var/run/fulcio
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5555
+          initialDelaySeconds: 5
+        readinessProbe:
+          grpc:
+            port: 5554
+          initialDelaySeconds: 5
+        resources:
+          requests:
+            memory: "1G"
+            cpu: ".5"
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65533
+          capabilities:
+            drop:
+            - all
+      volumes:
+      - name: fulcio-config
+        configMap:
+          name: fulcio-config
+      - name: fulcio-secret
+        secret:
+          secretName: fulcio-secret
+          optional: true
+      - name: oidc-info
+        projected:
+          sources:
+            - configMap:
+                name: kube-root-ca.crt
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                  mode: 0666
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: fulcio-system
+  name: fulcio-server
+spec:
+  selector:
+    app: fulcio-server
+  type: LoadBalancer
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 5555
+    - name: grpc
+      protocol: TCP
+      port: 5554
+      targetPort: 5554
